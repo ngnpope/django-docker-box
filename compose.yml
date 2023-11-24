@@ -1,0 +1,403 @@
+---
+
+x-base: &base
+  image: django-docker-box:${PYTHON_IMPLEMENTATION}-${PYTHON_VERSION}
+  build:
+    context: .
+    dockerfile: ./Containerfile
+    args:
+      - PYTHON_IMPLEMENTATION=${PYTHON_IMPLEMENTATION}
+      - PYTHON_VERSION=${PYTHON_VERSION}
+    additional_contexts:
+      src: ${DJANGO_PATH:-../django}
+  volumes:
+    - ${DJANGO_PATH:-../django}:/django/source:rw
+    - ./output:/django/output:rw
+    - ./coveragerc:/django/source/tests/.coveragerc:ro
+    - ./settings.py:/django/source/tests/settings.py:ro
+    - user-cache:/django/.cache/:rw
+
+x-mysql-base: &mysql-base
+  environment:
+    - MYSQL_ALLOW_EMPTY_PASSWORD=1
+    - MYSQL_DATABASE=django
+    - MYSQL_PASSWORD=django
+    - MYSQL_USER=django
+  tmpfs:
+    - /var/lib/mysql
+  deploy:
+    mode: global
+  restart: unless-stopped
+  healthcheck: &mysql-base-healthcheck
+    interval: 5s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+    start_interval: 1s
+  volumes:
+    - ./startup-mysql.sql:/docker-entrypoint-initdb.d/django.sql:ro
+
+x-oracle-base: &oracle-base
+  environment:
+    - ORACLE_PWD=oracle
+  deploy:
+    mode: global
+  restart: unless-stopped
+  healthcheck:
+    test: /opt/oracle/checkDBStatus.sh
+    interval: 5s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+    start_interval: 1s
+  volumes:
+    - ./startup-oracle.sql:/opt/oracle/scripts/startup/django.sql:ro
+
+x-postgresql-base: &postgresql-base
+  environment:
+    - POSTGRES_DB=django
+    - POSTGRES_PASSWORD=django
+    - POSTGRES_USER=django
+  tmpfs:
+    - /var/lib/postgresql
+  deploy:
+    mode: global
+  restart: unless-stopped
+  healthcheck:
+    test: pg_isready --quiet --username=django
+    interval: 5s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+    start_interval: 1s
+  command: >-
+    -c archive_mode=off
+    -c checkpoint_completion_target=0.9
+    -c checkpoint_timeout=900
+    -c fsync=off
+    -c full_page_writes=off
+    -c max_replication_slots=0
+    -c max_wal_senders=0
+    -c max_wal_size=4096
+    -c synchronous_commit=off
+    -c wal_level=minimal
+  # 13+: -c wal_keep_size=0
+
+x-memcached: &memcached-base
+  image: memcached:alpine
+  deploy:
+    mode: global
+  restart: unless-stopped
+  healthcheck:
+    test: echo stats | nc 127.0.0.1 11211
+    interval: 5s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+    start_interval: 1s
+  command: >-
+    --conn-limit=1024
+    --memory-limit=64
+    --threads=4
+
+x-redis: &redis-base
+  image: redis:alpine
+  deploy:
+    mode: global
+  restart: unless-stopped
+  healthcheck:
+    test: redis-cli ping | grep -i pong
+    interval: 5s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+    start_interval: 1s
+
+x-cache-depends: &depends-on-caches
+  memcached-1:
+    condition: service_healthy
+  memcached-2:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+
+x-selenium-base: &selenium-base
+  shm_size: 2gb
+  environment:
+    - SE_EVENT_BUS_HOST=selenium-hub
+    - SE_EVENT_BUS_PUBLISH_PORT=4442
+    - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    - SE_NODE_GRID_URL=http://selenium-hub:4444
+  depends_on:
+    selenium-hub:
+      condition: service_started
+  deploy:
+    mode: global
+  restart: unless-stopped
+
+volumes:
+  user-cache:
+
+services:
+
+  # Services: Databases
+
+  mariadb-db:
+    <<: *mysql-base
+    image: &mariadb-image mariadb:${MARIADB_VERSION}
+    command: &mariadb-command >-
+      --innodb-fast-shutdown=3
+      --innodb-flush-log-at-trx-commit=0
+      --innodb-flush-method=nosync
+      --innodb-random-read-ahead
+      --skip-innodb-doublewrite
+      --skip-innodb-file-per-table
+      --skip-innodb-flush-sync
+      --skip-innodb-use-atomic-writes
+      --skip-name-resolve
+    healthcheck: &mariadb-healthcheck
+      <<: *mysql-base-healthcheck
+      test: healthcheck.sh --connect
+
+  mariadb-gis-db:
+    <<: *mysql-base
+    image: *mariadb-image
+    command: *mariadb-command
+    healthcheck: *mariadb-healthcheck
+
+  mysql-db:
+    <<: *mysql-base
+    image: &mysql-image mysql:${MYSQL_VERSION}
+    command: &mysql-command >-
+      --innodb-flush-log-at-trx-commit=0
+      --innodb-flush-method=nosync
+      --innodb-random-read-ahead
+      --skip-innodb-doublewrite
+      --skip-innodb-extend-and-initialize
+      --skip-innodb-file-per-table
+      --skip-innodb-flush-sync
+      --skip-name-resolve
+    healthcheck: &mysql-healthcheck
+      <<: *mysql-base-healthcheck
+      test: mysqladmin ping --silent
+
+  mysql-gis-db:
+    <<: *mysql-base
+    image: *mysql-image
+    command: *mysql-command
+    healthcheck: *mysql-healthcheck
+
+  oracle-db:
+    <<: *oracle-base
+    # yamllint disable-line rule:line-length
+    image: &oracle-image container-registry.oracle.com/database/free:${ORACLE_VERSION}-lite
+
+  oracle-gis-db:
+    <<: *oracle-base
+    image: *oracle-image
+
+  postgresql-db:
+    <<: *postgresql-base
+    image: postgres:${POSTGRESQL_VERSION}-alpine
+
+  postgresql-gis-db:
+    <<: *postgresql-base
+    image: postgis/postgis:${POSTGRESQL_VERSION}-${POSTGIS_VERSION}-alpine
+
+  # Services: Caches
+
+  memcached-1:
+    <<: *memcached-base
+
+  memcached-2:
+    <<: *memcached-base
+
+  redis:
+    <<: *redis-base
+
+  # Services: Selenium
+
+  selenium-chrome:
+    <<: *selenium-base
+    image: selenium/node-chrome
+
+  selenium-edge:
+    <<: *selenium-base
+    image: selenium/node-edge
+
+  selenium-firefox:
+    <<: *selenium-base
+    image: selenium/node-firefox
+
+  selenium-hub:
+    image: selenium/hub
+    ports:
+      - "4442-4444:4442-4444"
+    deploy:
+      mode: global
+    restart: unless-stopped
+    healthcheck:
+      test: /opt/bin/check-grid.sh
+      interval: 15s
+      timeout: 30s
+      retries: 5
+
+  # Commands: Tests
+
+  mariadb:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+      mariadb-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_ENGINE=django.db.backends.mysql
+      - DATABASE_HOST=mariadb-db
+
+  mysql:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+      mysql-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_ENGINE=django.db.backends.mysql
+      - DATABASE_HOST=mysql-db
+
+  oracle:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+      oracle-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_ENGINE=django.db.backends.oracle
+      - DATABASE_NAME=oracle-db:1521/freepdb1
+
+  postgresql:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+      postgresql-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_ENGINE=django.db.backends.postgresql
+      - DATABASE_HOST=postgresql-db
+
+  sqlite:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+    environment:
+      - DATABASE_ENGINE=django.db.backends.sqlite3
+
+  # Commands: Tests: GIS
+
+  mariadb-gis:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+      mariadb-gis-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_ENGINE=django.contrib.gis.db.backends.mysql
+      - DATABASE_HOST=mariadb-gis-db
+
+  mysql-gis:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+      mysql-gis-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_ENGINE=django.contrib.gis.db.backends.mysql
+      - DATABASE_HOST=mysql-gis-db
+
+  oracle-gis:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+      oracle-gis-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_ENGINE=django.contrib.gis.db.backends.oracle
+      - DATABASE_NAME=oracle-gis-db:1521/freepdb1
+
+  postgresql-gis:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+      postgresql-gis-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_ENGINE=django.contrib.gis.db.backends.postgis
+      - DATABASE_HOST=postgresql-gis-db
+
+  sqlite-gis:
+    <<: *base
+    depends_on:
+      <<: *depends-on-caches
+    environment:
+      - DATABASE_ENGINE=django.contrib.gis.db.backends.spatialite
+
+  # Commands: Tests: Selenium
+
+  chrome:
+    <<: *base
+    entrypoint: >-
+      /django/entrypoint.bash
+      --selenium=chrome
+      --selenium-hub=http://selenium-hub:4444/wd/hub
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+      selenium-chrome:
+        condition: service_started
+    environment:
+      - DATABASE_ENGINE=django.db.backends.sqlite3
+
+  edge:
+    <<: *base
+    entrypoint: >-
+      /django/entrypoint.bash
+      --selenium=edge
+      --selenium-hub=http://selenium-hub:4444/wd/hub
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+      selenium-edge:
+        condition: service_started
+    environment:
+      - DATABASE_ENGINE=django.db.backends.sqlite3
+
+  firefox:
+    <<: *base
+    entrypoint: >-
+      /django/entrypoint.bash
+      --selenium=firefox
+      --selenium-hub=http://selenium-hub:4444/wd/hub
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+      selenium-firefox:
+        condition: service_started
+    environment:
+      - DATABASE_ENGINE=django.db.backends.sqlite3
+
+  # Commands: Other
+
+  pre-commit:
+    <<: *base
+    entrypoint: pre-commit run --all-files
+    working_dir: /django/source
+    environment:
+      # XXX: Disable eslint due to issues finding dependencies.
+      #      See https://github.com/django/django/pull/18162
+      SKIP: eslint
+
+  sphinx:
+    <<: *base
+    entrypoint: make
+    working_dir: /django/source/docs
+    environment:
+      BUILDDIR: /django/output/docs
