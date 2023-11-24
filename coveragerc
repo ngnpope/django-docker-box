@@ -1,0 +1,35 @@
+[run]
+branch = true
+concurrency = multiprocessing,thread
+data_file = /django/output/coverage/coverage.dat
+dynamic_context = test_function
+omit =
+    */django/utils/autoreload.py
+parallel = true
+relative_files = true
+source = django
+
+[paths]
+source =
+    /django/source
+
+[report]
+ignore_errors = true
+include_namespace_packages = true
+omit =
+    */django/conf/locale/*
+    */tests/*
+show_missing = true
+skip_empty = true
+
+[html]
+directory = /django/output/coverage/coverage.html
+skip_empty = true
+title = Django Test Coverage
+
+[json]
+output = /django/output/coverage/coverage.json
+show_contexts = true
+
+[xml]
+output = /django/output/coverage/coverage.xml
