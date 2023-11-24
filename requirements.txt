@@ -1,0 +1,4 @@
+black
+coverage
+pre-commit
+unittest-xml-reporting
