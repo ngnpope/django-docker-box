@@ -374,6 +374,6 @@ services:
     working_dir: /tests/django/docs
     user: root
 
-  flake8:
+  pre-commit:
     <<: *base
-    entrypoint: flake8
+    entrypoint: pre-commit run --all-files
