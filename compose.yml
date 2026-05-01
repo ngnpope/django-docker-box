@@ -57,6 +57,8 @@ x-postgresql-base: &postgresql-base
     POSTGRES_DB: django
     POSTGRES_PASSWORD: django
     POSTGRES_USER: django
+    # TODO: [PostgreSQL 18+] Add --no-data-checksums
+    POSTGRES_INITDB_ARGS: "--no-sync"
   tmpfs:
     - /var/lib/postgresql
   deploy:
@@ -72,16 +74,22 @@ x-postgresql-base: &postgresql-base
   command: >-
     -c archive_mode=off
     -c bgwriter_lru_maxpages=0
-    -c checkpoint_timeout=1800
+    -c checkpoint_timeout=30min
+    -c default_toast_compression=lz4
+    -c effective_io_concurrency=200
     -c fsync=off
     -c full_page_writes=off
     -c jit=off
     -c max_replication_slots=0
     -c max_wal_senders=0
-    -c max_wal_size=4096
+    -c max_wal_size=4GB
+    -c min_wal_size=2GB
+    -c random_page_cost=1.1
+    -c shared_buffers=512MB
     -c synchronous_commit=off
     -c wal_keep_size=0
     -c wal_level=minimal
+    -c work_mem=256MB
 
 x-memcached: &memcached-base
   image: memcached:alpine
