@@ -18,10 +18,10 @@ x-base: &base
 
 x-mysql-base: &mysql-base
   environment:
-    - MYSQL_ALLOW_EMPTY_PASSWORD=1
-    - MYSQL_DATABASE=django
-    - MYSQL_PASSWORD=django
-    - MYSQL_USER=django
+    MYSQL_ALLOW_EMPTY_PASSWORD: 1
+    MYSQL_DATABASE: django
+    MYSQL_PASSWORD: django
+    MYSQL_USER: django
   tmpfs:
     - /var/lib/mysql
   deploy:
@@ -38,7 +38,7 @@ x-mysql-base: &mysql-base
 
 x-oracle-base: &oracle-base
   environment:
-    - ORACLE_PWD=oracle
+    ORACLE_PWD: oracle
   deploy:
     mode: global
   restart: unless-stopped
@@ -54,9 +54,9 @@ x-oracle-base: &oracle-base
 
 x-postgresql-base: &postgresql-base
   environment:
-    - POSTGRES_DB=django
-    - POSTGRES_PASSWORD=django
-    - POSTGRES_USER=django
+    POSTGRES_DB: django
+    POSTGRES_PASSWORD: django
+    POSTGRES_USER: django
   tmpfs:
     - /var/lib/postgresql
   deploy:
@@ -124,10 +124,10 @@ x-cache-depends: &depends-on-caches
 x-selenium-base: &selenium-base
   shm_size: 2gb
   environment:
-    - SE_EVENT_BUS_HOST=selenium-hub
-    - SE_EVENT_BUS_PUBLISH_PORT=4442
-    - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
-    - SE_NODE_GRID_URL=http://selenium-hub:4444
+    SE_EVENT_BUS_HOST: selenium-hub
+    SE_EVENT_BUS_PUBLISH_PORT: 4442
+    SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+    SE_NODE_GRID_URL: http://selenium-hub:4444
   depends_on:
     selenium-hub:
       condition: service_started
@@ -251,8 +251,8 @@ services:
       mariadb-db:
         condition: service_healthy
     environment:
-      - DATABASE_ENGINE=django.db.backends.mysql
-      - DATABASE_HOST=mariadb-db
+      DATABASE_ENGINE: django.db.backends.mysql
+      DATABASE_HOST: mariadb-db
 
   mysql:
     <<: *base
@@ -261,8 +261,8 @@ services:
       mysql-db:
         condition: service_healthy
     environment:
-      - DATABASE_ENGINE=django.db.backends.mysql
-      - DATABASE_HOST=mysql-db
+      DATABASE_ENGINE: django.db.backends.mysql
+      DATABASE_HOST: mysql-db
 
   oracle:
     <<: *base
@@ -271,8 +271,8 @@ services:
       oracle-db:
         condition: service_healthy
     environment:
-      - DATABASE_ENGINE=django.db.backends.oracle
-      - DATABASE_NAME=oracle-db:1521/freepdb1
+      DATABASE_ENGINE: django.db.backends.oracle
+      DATABASE_NAME: oracle-db:1521/freepdb1
 
   postgresql:
     <<: *base
@@ -281,15 +281,15 @@ services:
       postgresql-db:
         condition: service_healthy
     environment:
-      - DATABASE_ENGINE=django.db.backends.postgresql
-      - DATABASE_HOST=postgresql-db
+      DATABASE_ENGINE: django.db.backends.postgresql
+      DATABASE_HOST: postgresql-db
 
   sqlite:
     <<: *base
     depends_on:
       <<: *depends-on-caches
     environment:
-      - DATABASE_ENGINE=django.db.backends.sqlite3
+      DATABASE_ENGINE: django.db.backends.sqlite3
 
   # Commands: Tests: GIS
 
@@ -300,8 +300,8 @@ services:
       mariadb-gis-db:
         condition: service_healthy
     environment:
-      - DATABASE_ENGINE=django.contrib.gis.db.backends.mysql
-      - DATABASE_HOST=mariadb-gis-db
+      DATABASE_ENGINE: django.contrib.gis.db.backends.mysql
+      DATABASE_HOST: mariadb-gis-db
 
   mysql-gis:
     <<: *base
@@ -310,8 +310,8 @@ services:
       mysql-gis-db:
         condition: service_healthy
     environment:
-      - DATABASE_ENGINE=django.contrib.gis.db.backends.mysql
-      - DATABASE_HOST=mysql-gis-db
+      DATABASE_ENGINE: django.contrib.gis.db.backends.mysql
+      DATABASE_HOST: mysql-gis-db
 
   oracle-gis:
     <<: *base
@@ -320,8 +320,8 @@ services:
       oracle-gis-db:
         condition: service_healthy
     environment:
-      - DATABASE_ENGINE=django.contrib.gis.db.backends.oracle
-      - DATABASE_NAME=oracle-gis-db:1521/freepdb1
+      DATABASE_ENGINE: django.contrib.gis.db.backends.oracle
+      DATABASE_NAME: oracle-gis-db:1521/freepdb1
 
   postgresql-gis:
     <<: *base
@@ -330,15 +330,15 @@ services:
       postgresql-gis-db:
         condition: service_healthy
     environment:
-      - DATABASE_ENGINE=django.contrib.gis.db.backends.postgis
-      - DATABASE_HOST=postgresql-gis-db
+      DATABASE_ENGINE: django.contrib.gis.db.backends.postgis
+      DATABASE_HOST: postgresql-gis-db
 
   sqlite-gis:
     <<: *base
     depends_on:
       <<: *depends-on-caches
     environment:
-      - DATABASE_ENGINE=django.contrib.gis.db.backends.spatialite
+      DATABASE_ENGINE: django.contrib.gis.db.backends.spatialite
 
   # Commands: Tests: Selenium
 
@@ -354,7 +354,7 @@ services:
       selenium-chrome:
         condition: service_started
     environment:
-      - DATABASE_ENGINE=django.db.backends.sqlite3
+      DATABASE_ENGINE: django.db.backends.sqlite3
 
   edge:
     <<: *base
@@ -368,7 +368,7 @@ services:
       selenium-edge:
         condition: service_started
     environment:
-      - DATABASE_ENGINE=django.db.backends.sqlite3
+      DATABASE_ENGINE: django.db.backends.sqlite3
 
   firefox:
     <<: *base
@@ -382,7 +382,7 @@ services:
       selenium-firefox:
         condition: service_started
     environment:
-      - DATABASE_ENGINE=django.db.backends.sqlite3
+      DATABASE_ENGINE: django.db.backends.sqlite3
 
   # Commands: Other
 
